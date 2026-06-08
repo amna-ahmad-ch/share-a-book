@@ -14,15 +14,15 @@ export const GRADES = [
 ]
 
 export const CATEGORIES = [
-  'Math',
-  'English',
+   'English',
   'Urdu',
+  'Math',
   'Science',
   'Social Studies',
-  'Islamiyat',
-  'Computer',
+  'Islamiyat',  
   'Physics',
   'Chemistry',
+  'Computer',
   'Biology',
   'Readers / Story Books',
   'Book Packs',

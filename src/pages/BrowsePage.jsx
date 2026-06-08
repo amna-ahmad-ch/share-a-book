@@ -7,13 +7,14 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../firebase'
-import { CATEGORIES, GRADES, LISTING_TYPES } from '../constants'
-import FilterChips from '../components/FilterChips'
+import { LISTING_TYPES } from '../constants'
+import FilterSheet from '../components/FilterSheet'
 import ListingCard from '../components/ListingCard'
 import { useAuth } from '../contexts/AuthContext'
+import { loadBrowseFilters, saveBrowseFilters } from '../utils/browseFilters'
 
 export default function BrowsePage() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const [listings, setListings] = useState([])
   const [blockedUids, setBlockedUids] = useState(new Set())
   const [loading, setLoading] = useState(true)
@@ -21,6 +22,22 @@ export default function BrowsePage() {
   const [grade, setGrade] = useState('')
   const [category, setCategory] = useState('')
   const [type, setType] = useState('all')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [filtersLoaded, setFiltersLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!user?.uid) return
+    const saved = loadBrowseFilters(user.uid)
+    setGrade(saved.grade)
+    setCategory(saved.category)
+    setType(saved.type)
+    setFiltersLoaded(true)
+  }, [user?.uid])
+
+  useEffect(() => {
+    if (!user?.uid || !filtersLoaded) return
+    saveBrowseFilters(user.uid, { grade, category, type })
+  }, [user?.uid, filtersLoaded, grade, category, type])
 
   useEffect(() => {
     const q = query(
@@ -72,6 +89,29 @@ export default function BrowsePage() {
 
   const hasFilters = Boolean(grade || category || type !== 'all')
 
+  const activeFilterCount = [
+    grade,
+    category,
+    type !== 'all' ? type : '',
+  ].filter(Boolean).length
+
+  const activeFilters = useMemo(() => {
+    const filters = []
+    if (grade) filters.push({ key: 'grade', label: grade, clear: () => setGrade('') })
+    if (category) filters.push({ key: 'category', label: category, clear: () => setCategory('') })
+    if (type !== 'all') {
+      const label = LISTING_TYPES.find((t) => t.value === type)?.label
+      if (label) filters.push({ key: 'type', label, clear: () => setType('all') })
+    }
+    return filters
+  }, [grade, category, type])
+
+  function clearFilters() {
+    setGrade('')
+    setCategory('')
+    setType('all')
+  }
+
   function emptyMessage() {
     if (loadError) return loadError
     if (!hasFilters && visible.length === 0) {
@@ -89,36 +129,70 @@ export default function BrowsePage() {
         )}
       </header>
 
-      <section className="space-y-2">
-        <p className="text-xs font-medium text-primary/50 uppercase tracking-wide">Grade</p>
-        <FilterChips
-          options={GRADES}
-          value={grade}
-          onChange={setGrade}
-        />
-      </section>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(true)}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white border border-primary/10 text-sm font-semibold text-primary shadow-sm active:scale-[0.99] transition-transform"
+          >
+            <span aria-hidden>🔍</span>
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-filter-soft text-primary border border-filter-border text-xs font-semibold leading-5">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="shrink-0 px-3 py-2.5 rounded-xl text-sm font-medium text-primary/60 border border-primary/10"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {hasFilters && (
+          <div className="rounded-xl bg-white border border-primary/20 px-3 py-2.5 flex flex-wrap items-center gap-2 shadow-sm">
+            <span className="text-[11px] font-semibold text-primary/50 uppercase tracking-wide shrink-0">
+              Showing
+            </span>
+            {activeFilters.map((filter) => (
+              <span
+                key={filter.key}
+                className="inline-flex items-center gap-1 rounded-full bg-filter-soft border border-filter-border pl-2.5 pr-1 py-1 text-xs font-semibold text-primary"
+              >
+                {filter.label}
+                <button
+                  type="button"
+                  onClick={filter.clear}
+                  aria-label={`Remove ${filter.label} filter`}
+                  className="flex items-center justify-center w-4 h-4 rounded-full text-primary/40 text-sm leading-none active:text-primary"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
 
-      <section className="space-y-2">
-        <p className="text-xs font-medium text-primary/50 uppercase tracking-wide">Subject</p>
-        <FilterChips
-          options={CATEGORIES}
-          value={category}
-          onChange={setCategory}
-        />
-      </section>
-
-      <section className="space-y-2">
-        <p className="text-xs font-medium text-primary/50 uppercase tracking-wide">Type</p>
-        <FilterChips
-          options={LISTING_TYPES.filter((t) => t.value !== 'all').map((t) => ({
-            value: t.value,
-            label: t.label,
-          }))}
-          value={type === 'all' ? '' : type}
-          onChange={(v) => setType(v || 'all')}
-          allLabel="All"
-        />
-      </section>
+      <FilterSheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        grade={grade}
+        onGradeChange={setGrade}
+        category={category}
+        onCategoryChange={setCategory}
+        type={type}
+        onTypeChange={setType}
+        onClearAll={() => {
+          clearFilters()
+          setFiltersOpen(false)
+        }}
+      />
 
       <p className="text-sm text-primary/60">
         {loading
@@ -129,7 +203,7 @@ export default function BrowsePage() {
       </p>
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="aspect-[3/4] rounded-xl bg-primary/5 animate-pulse" />
           ))}
@@ -140,7 +214,7 @@ export default function BrowsePage() {
           <p className="text-sm leading-relaxed px-4">{emptyMessage()}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {filtered.map((listing) => (
             <ListingCard key={listing.id} listing={listing} />
           ))}

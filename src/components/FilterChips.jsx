@@ -4,7 +4,7 @@ export default function FilterChips({ options, value, onChange, allLabel = 'All'
   )]
 
   return (
-    <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+    <div className="flex flex-wrap gap-2 w-full min-w-0">
       {items.map((item) => {
         const active = value === item.value
         return (
@@ -12,12 +12,12 @@ export default function FilterChips({ options, value, onChange, allLabel = 'All'
             key={item.value || '__all'}
             type="button"
             onClick={() => onChange(item.value)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
               active
-                ? 'bg-primary text-white'
-                : 'bg-white text-primary border border-primary/20'
+                ? 'bg-filter-soft text-primary font-semibold border border-filter-border'
+                : 'bg-white text-primary/55 font-medium border border-primary/10'
             }`}
-          >
+            >
             {item.label}
           </button>
         )
