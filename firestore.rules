@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* =========================
+       HELPERS
+    ========================= */
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userExists() {
+      return isSignedIn() && userDoc() != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && userDoc().data.isAdmin == true;
+    }
+
+    function isNotBlocked() {
+      return isSignedIn()
+        && userDoc().data.isBlocked != true;
+    }
+
+    /* =========================
+       USERS
+    ========================= */
+
+    match /users/{userId} {
+
+      allow read: if isSignedIn();
+
+      allow create: if isOwner(userId);
+
+      allow update: if isOwner(userId)
+        || (isAdmin()
+            && request.resource.data.diff(resource.data)
+                 .affectedKeys()
+                 .hasOnly(['isBlocked']));
+
+      allow delete: if isAdmin();
+    }
+
+    /* =========================
+       LISTINGS
+    ========================= */
+
+    match /listings/{listingId} {
+
+      allow read: if isSignedIn();
+
+      allow create: if isNotBlocked()
+        && request.resource.data.postedByUid == request.auth.uid
+        && request.resource.data.isActive == true;
+
+      allow update, delete: if isSignedIn()
+        && (
+          resource.data.postedByUid == request.auth.uid
+          || isAdmin()
+        );
+    }
+
+    /* =========================
+       SCHOOLS
+    ========================= */
+
+    match /schools/{schoolId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    /* =========================
+       REPORTS
+       (FIXED VERSION)
+    ========================= */
+
+    match /reports/{reportId} {
+
+      allow read: if isAdmin();
+
+      allow create: if isSignedIn()
+        && isNotBlocked()
+        && isValidReport();
+
+      allow update: if isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
+    /* =========================
+       REPORT VALIDATION
+    ========================= */
+
+    function isValidReport() {
+      let data = request.resource.data;
+
+      return isSignedIn()
+        && data.status == 'pending'
+        && data.reportedByUid == request.auth.uid
+        && data.posterUid is string
+        && data.posterUid != request.auth.uid
+        && data.listingId is string
+        && data.listingTitle is string
+        && data.reportedByName is string;
+    }
+
+  }
+}
