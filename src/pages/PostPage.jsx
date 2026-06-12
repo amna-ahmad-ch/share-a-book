@@ -16,6 +16,7 @@ import {
   CONDITIONS,
   GRADES,
   MAX_LISTINGS,
+  MAX_LISTING_TITLE,
 } from '../constants'
 import PhotoPicker from '../components/PhotoPicker'
 
@@ -45,8 +46,13 @@ export default function PostPage() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    if (!form.title.trim()) {
+    const trimmedTitle = form.title.trim()
+    if (!trimmedTitle) {
       setError('Book title is required.')
+      return
+    }
+    if (trimmedTitle.length > MAX_LISTING_TITLE) {
+      setError(`Title must be ${MAX_LISTING_TITLE} characters or fewer.`)
       return
     }
     if (!form.grade || !form.category) {
@@ -60,9 +66,10 @@ export default function PostPage() {
     setLoading(true)
     try {
       let imageUrl = null
+      let imagePath = null
       if (processedPhoto) {
-        const path = `listings/${user.uid}/${Date.now()}_${processedPhoto.name}`
-        const storageRef = ref(storage, path)
+        imagePath = `listings/${user.uid}/${Date.now()}_${processedPhoto.name}`
+        const storageRef = ref(storage, imagePath)
         await uploadBytes(storageRef, processedPhoto, {
           contentType: processedPhoto.type || 'image/jpeg',
         })
@@ -70,13 +77,14 @@ export default function PostPage() {
       }
 
       await addDoc(collection(db, 'listings'), {
-        title: form.title.trim(),
+        title: trimmedTitle,
         grade: form.grade,
         category: form.category,
         condition: form.condition,
         type: form.type,
         price: form.type === 'sell' ? Number(form.price) : null,
         imageUrl,
+        imagePath,
         postedBy: profile.name,
         postedByUid: user.uid,
         postedByPhone: profile.phone || user.phoneNumber,
@@ -176,6 +184,7 @@ export default function PostPage() {
             type="text"
             value={form.title}
             onChange={(e) => update('title', e.target.value)}
+            maxLength={MAX_LISTING_TITLE}
             className="mt-1 w-full px-4 py-3 rounded-lg border border-primary/20 bg-white"
             placeholder="e.g. Oxford Mathematics Grade 5"
           />

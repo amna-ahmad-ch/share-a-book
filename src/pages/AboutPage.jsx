@@ -8,11 +8,21 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
+import {
+  SUPPORT_TOPICS,
+  buildSupportWhatsAppUrl,
+  submitSupportMessage,
+  supportWhatsAppConfigured,
+} from '../utils/support'
 
 export default function AboutPage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [stats, setStats] = useState({ total: 0, free: 0 })
-  const [showQr, setShowQr] = useState(false)
+  const [topic, setTopic] = useState('general')
+  const [message, setMessage] = useState('')
+  const [formError, setFormError] = useState('')
+  const [formLoading, setFormLoading] = useState(false)
+  const [formSent, setFormSent] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -26,6 +36,27 @@ export default function AboutPage() {
     })
     return unsub
   }, [user])
+
+  async function handleSupportSubmit(e) {
+    e.preventDefault()
+    if (!user) return
+    setFormError('')
+    setFormLoading(true)
+    try {
+      await submitSupportMessage({ user, profile, topic, message })
+      setMessage('')
+      setTopic('general')
+      setFormSent(true)
+    } catch (err) {
+      setFormError(err.message || 'Could not send message. Please try again.')
+    } finally {
+      setFormLoading(false)
+    }
+  }
+
+  const whatsAppUrl = supportWhatsAppConfigured()
+    ? buildSupportWhatsAppUrl(profile)
+    : null
 
   return (
     <div className="space-y-6 pb-4">
@@ -72,18 +103,76 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="rounded-xl bg-white p-4 border border-primary/5 text-center">
-        <p className="text-sm text-primary/70 leading-relaxed mb-3">
-          This app is built by a school parent, for school parents. If it helped you,
-          consider buying me a chai.
-        </p>
-        <button
-          type="button"
-          onClick={() => setShowQr(true)}
-          className="px-6 py-2 rounded-lg bg-accent text-primary font-bold text-sm"
-        >
-          Support via Easypaisa
-        </button>
+      <section className="rounded-xl bg-white p-4 border border-primary/5 space-y-4">
+        <div>
+          <h2 className="font-bold text-primary mb-1">Need help?</h2>
+          <p className="text-sm text-primary/70 leading-relaxed">
+            Questions, missing school, or something not working — reach out below.
+          </p>
+        </div>
+
+        {whatsAppUrl && (
+          <a
+            href={whatsAppUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-whatsapp text-white font-semibold text-sm"
+          >
+            Message on WhatsApp
+          </a>
+        )}
+
+        {user ? (
+          formSent ? (
+            <div className="rounded-lg bg-free/10 border border-free/30 px-3 py-3 text-sm text-primary text-center">
+              Message sent — we&apos;ll get back to you soon.
+              <button
+                type="button"
+                onClick={() => setFormSent(false)}
+                className="block mx-auto mt-2 text-xs text-primary/60 underline"
+              >
+                Send another
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSupportSubmit} className="space-y-3">
+              <p className="text-xs font-medium text-primary/50 uppercase tracking-wide">
+                Or send a message
+              </p>
+              <select
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-primary/15 text-sm bg-white text-primary"
+              >
+                {SUPPORT_TOPICS.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Describe your question or issue…"
+                rows={4}
+                maxLength={1000}
+                required
+                className="w-full px-3 py-2 rounded-lg border border-primary/15 text-sm resize-none"
+              />
+              {formError && <p className="text-red-600 text-xs">{formError}</p>}
+              <button
+                type="submit"
+                disabled={formLoading || !message.trim()}
+                className="w-full py-2.5 rounded-lg bg-primary text-white text-sm font-semibold disabled:opacity-50"
+              >
+                {formLoading ? 'Sending…' : 'Send message'}
+              </button>
+            </form>
+          )
+        ) : (
+          <p className="text-sm text-primary/60 text-center">
+            <Link to="/login" className="text-accent font-medium">Sign in</Link>
+            {' '}to send a message through the app.
+          </p>
+        )}
       </section>
 
       <p className="text-center text-xs text-primary/40 pb-2">
@@ -99,40 +188,6 @@ export default function AboutPage() {
         </Link>
       )}
 
-      {showQr && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-6"
-          onClick={() => setShowQr(false)}
-          onKeyDown={(e) => e.key === 'Escape' && setShowQr(false)}
-          role="presentation"
-        >
-          <div
-            className="bg-white rounded-2xl p-6 max-w-xs w-full text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-bold text-primary mb-3">Easypaisa</h3>
-            <img
-              src="/easypaisa-qr.png"
-              alt="Easypaisa QR code"
-              className="w-full rounded-lg border border-primary/10"
-              onError={(e) => {
-                e.target.style.display = 'none'
-                e.target.nextSibling?.classList.remove('hidden')
-              }}
-            />
-            <p className="hidden text-sm text-primary/50 mt-2">
-              Add your QR image at public/easypaisa-qr.png
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowQr(false)}
-              className="mt-4 text-sm text-primary/60"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

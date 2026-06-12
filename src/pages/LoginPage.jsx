@@ -5,56 +5,8 @@ import {
   signInWithPhoneNumber,
 } from 'firebase/auth'
 import { auth } from '../firebase'
+import { mapSendOtpError, mapVerifyOtpError } from '../utils/authErrors'
 import { toE164Pakistan, formatPhoneDisplay } from '../utils/phone'
-
-function mapAuthError(err) {
-  const code = err?.code || ''
-  const host = window.location.hostname
-
-  if (code === 'auth/invalid-app-credential' || code === 'auth/app-not-authorized') {
-    if (host === 'localhost') {
-      return (
-        'Phone login does not work on localhost. Open the app at http://127.0.0.1:5173 ' +
-        'instead, and add 127.0.0.1 under Firebase → Authentication → Settings → Authorized domains.'
-      )
-    }
-    return (
-      'Security check failed. Add this site under Firebase → Authentication → Authorized domains, ' +
-      'complete the reCAPTCHA below, then try again.'
-    )
-  }
-  if (code === 'auth/captcha-check-failed') {
-    return 'Complete the “I\'m not a robot” check below, then try again.'
-  }
-  if (code === 'auth/operation-not-allowed') {
-    const msg = err?.message || ''
-    if (msg.includes('region') || msg.includes('SMS unable')) {
-      return (
-        'SMS is not enabled for Pakistan (+92) in your Firebase project. ' +
-        'Go to Firebase Console → Authentication → Settings → SMS region policy, ' +
-        'choose “Allow” and add Pakistan (or allow all regions). Save, wait 1–2 minutes, then try again.'
-      )
-    }
-    return (
-      'Phone sign-in blocked by Firebase. If Phone is already enabled, check SMS region policy ' +
-      '(allow Pakistan +92) or upgrade to Blaze for real SMS. For free testing, add a test phone number ' +
-      'under Authentication → Sign-in method → Phone → Phone numbers for testing.'
-    )
-  }
-  if (code === 'auth/invalid-phone-number') {
-    return 'This phone number is not valid. Use a Pakistani mobile number like 03XX XXXXXXX.'
-  }
-  if (code === 'auth/too-many-requests' || code === 'auth/quota-exceeded') {
-    return 'Too many attempts. Wait a few minutes and try again.'
-  }
-  if (code === 'auth/missing-phone-number') {
-    return 'Enter your mobile number.'
-  }
-  if (err?.message) {
-    return `${err.message}${code ? ` [${code}]` : ''}`
-  }
-  return 'Could not send OTP. Check your number, complete reCAPTCHA, and try again.'
-}
 
 const isLocalhost =
   typeof window !== 'undefined' &&
@@ -125,7 +77,7 @@ export default function LoginPage() {
       setStep('otp')
     } catch (err) {
       console.error('Phone auth error:', err)
-      setError(mapAuthError(err))
+      setError(mapSendOtpError(err))
       await clearRecaptcha()
     } finally {
       setLoading(false)
@@ -145,11 +97,7 @@ export default function LoginPage() {
       navigate('/', { replace: true })
     } catch (err) {
       console.error('OTP verify error:', err)
-      setError(
-        err?.code === 'auth/invalid-verification-code'
-          ? 'Incorrect code. Check the SMS and try again.'
-          : 'Could not verify code. Try again or request a new OTP.',
-      )
+      setError(mapVerifyOtpError(err))
     } finally {
       setLoading(false)
     }

@@ -18,10 +18,6 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function userExists() {
-      return isSignedIn() && userDoc() != null;
-    }
-
     function isAdmin() {
       return isSignedIn()
         && userDoc().data.isAdmin == true;
@@ -32,21 +28,66 @@ service cloud.firestore {
         && userDoc().data.isBlocked != true;
     }
 
+    function isBillingActive() {
+      return get(/databases/$(database)/documents/billing/status).data.isActive == true;
+    }
+
+    /* =========================
+       BILLING (kill switch)
+    ========================= */
+
+    match /billing/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    /* =========================
+       BLOCKED USERS (public block list for browse filtering)
+    ========================= */
+
+    match /blockedUsers/{uid} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
     /* =========================
        USERS
     ========================= */
 
     match /users/{userId} {
 
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId
+        || isAdmin()
+      );
 
-      allow create: if isOwner(userId);
+      allow create: if isOwner(userId) && isBillingActive();
 
-      allow update: if isOwner(userId)
-        || (isAdmin()
-            && request.resource.data.diff(resource.data)
-                 .affectedKeys()
-                 .hasOnly(['isBlocked']));
+      allow update: if (
+        (isOwner(userId)
+          && isBillingActive()
+          && request.resource.data.diff(resource.data)
+               .affectedKeys()
+               .hasOnly([
+                 'name',
+                 'phone',
+                 'school',
+                 'activeListingCount',
+               ])
+        )
+        ||
+        (isAdmin()
+          && request.resource.data.diff(resource.data)
+               .affectedKeys()
+               .hasOnly(['isBlocked'])
+        )
+        ||
+        (isAdmin()
+          && request.resource.data.diff(resource.data)
+               .affectedKeys()
+               .hasOnly(['activeListingCount'])
+        )
+      );
 
       allow delete: if isAdmin();
     }
@@ -60,10 +101,12 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       allow create: if isNotBlocked()
+        && isBillingActive()
         && request.resource.data.postedByUid == request.auth.uid
         && request.resource.data.isActive == true;
 
-      allow update, delete: if isSignedIn()
+      allow update, delete: if isBillingActive()
+        && isSignedIn()
         && (
           resource.data.postedByUid == request.auth.uid
           || isAdmin()
@@ -75,13 +118,12 @@ service cloud.firestore {
     ========================= */
 
     match /schools/{schoolId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
     /* =========================
        REPORTS
-       (FIXED VERSION)
     ========================= */
 
     match /reports/{reportId} {
@@ -90,16 +132,16 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && isNotBlocked()
+        && isBillingActive()
         && isValidReport();
 
-      allow update: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data)
+             .affectedKeys()
+             .hasOnly(['status']);
 
       allow delete: if isAdmin();
     }
-
-    /* =========================
-       REPORT VALIDATION
-    ========================= */
 
     function isValidReport() {
       let data = request.resource.data;
@@ -111,7 +153,37 @@ service cloud.firestore {
         && data.posterUid != request.auth.uid
         && data.listingId is string
         && data.listingTitle is string
-        && data.reportedByName is string;
+        && data.listingTitle.size() <= 200
+        && data.reportedByName is string
+        && data.reportedByName.size() <= 100;
+    }
+
+    /* =========================
+       SUPPORT MESSAGES
+    ========================= */
+
+    function isValidSupportMessage() {
+      let data = request.resource.data;
+
+      return data.userId == request.auth.uid
+        && data.userName is string
+        && data.userPhone is string
+        && data.userSchool is string
+        && data.topic in ['general', 'missing_school', 'problem', 'other']
+        && data.message is string
+        && data.message.size() > 0
+        && data.message.size() <= 1000
+        && data.status == 'open';
+    }
+
+    match /supportMessages/{messageId} {
+      allow list, read: if isAdmin();
+      allow create: if isNotBlocked() && isBillingActive() && isValidSupportMessage();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data)
+             .affectedKeys()
+             .hasOnly(['status']);
+      allow delete: if isAdmin();
     }
 
   }

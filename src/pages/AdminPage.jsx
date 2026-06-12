@@ -5,6 +5,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  setDoc,
   increment,
   onSnapshot,
   orderBy,
@@ -15,6 +16,8 @@ import {
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { formatSchoolLabel, parseSchoolDoc } from '../utils/school'
+import { deactivateListing } from '../utils/listingStorage'
+import { supportTopicLabel } from '../utils/support'
 
 export default function AdminPage() {
   const { user, profile } = useAuth()
@@ -28,6 +31,7 @@ export default function AdminPage() {
   const [schoolError, setSchoolError] = useState('')
   const [reports, setReports] = useState([])
   const [reportsError, setReportsError] = useState('')
+  const [supportMessages, setSupportMessages] = useState([])
 
   useEffect(() => {
     const q = query(
@@ -45,6 +49,13 @@ export default function AdminPage() {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
       list.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
       setUsers(list)
+      list
+        .filter((u) => u.isBlocked)
+        .forEach((u) => {
+          setDoc(doc(db, 'blockedUsers', u.id), { blockedAt: new Date() }, { merge: true }).catch(
+            () => {},
+          )
+        })
     })
   }, [])
 
@@ -70,6 +81,13 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => {
+    const q = query(collection(db, 'supportMessages'), orderBy('createdAt', 'desc'))
+    return onSnapshot(q, (snap) => {
+      setSupportMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    })
+  }, [])
+
+  useEffect(() => {
     return onSnapshot(collection(db, 'schools'), (snap) => {
       const list = snap.docs.map((d) => parseSchoolDoc(d.id, d.data()))
       list.sort((a, b) => formatSchoolLabel(a).localeCompare(formatSchoolLabel(b)))
@@ -79,7 +97,7 @@ export default function AdminPage() {
 
   async function deleteListing(listing) {
     if (!confirm('Delete this listing?')) return
-    await updateDoc(doc(db, 'listings', listing.id), { isActive: false })
+    await deactivateListing(listing.id, listing)
     if (listing.postedByUid) {
       await updateDoc(doc(db, 'users', listing.postedByUid), {
         activeListingCount: increment(-1),
@@ -91,6 +109,11 @@ export default function AdminPage() {
     const action = currentlyBlocked ? 'unblock' : 'block'
     if (!confirm(`Are you sure you want to ${action} this user?`)) return
     await updateDoc(doc(db, 'users', uid), { isBlocked: !currentlyBlocked })
+    if (currentlyBlocked) {
+      await deleteDoc(doc(db, 'blockedUsers', uid))
+    } else {
+      await setDoc(doc(db, 'blockedUsers', uid), { blockedAt: new Date() })
+    }
   }
 
   async function addSchool(e) {
@@ -123,6 +146,15 @@ export default function AdminPage() {
     await deleteDoc(doc(db, 'reports', report.id))
   }
 
+  async function resolveSupportMessage(msg) {
+    await updateDoc(doc(db, 'supportMessages', msg.id), { status: 'resolved' })
+  }
+
+  async function deleteSupportMessage(msg) {
+    if (!confirm('Delete this message?')) return
+    await deleteDoc(doc(db, 'supportMessages', msg.id))
+  }
+
   async function deleteReportedListing(report) {
     const listing = listings.find((l) => l.id === report.listingId)
     if (!listing?.isActive) {
@@ -130,7 +162,7 @@ export default function AdminPage() {
       return
     }
     if (!confirm(`Delete listing "${report.listingTitle}"?`)) return
-    await updateDoc(doc(db, 'listings', report.listingId), { isActive: false })
+    await deactivateListing(report.listingId, listing)
     if (listing.postedByUid) {
       await updateDoc(doc(db, 'users', listing.postedByUid), {
         activeListingCount: increment(-1),
@@ -140,6 +172,7 @@ export default function AdminPage() {
   }
 
   const pendingReports = reports
+  const openSupportCount = supportMessages.filter((m) => m.status === 'open').length
 
   return (
     <div className="space-y-4">
@@ -152,6 +185,7 @@ export default function AdminPage() {
         {[
           { id: 'listings', label: 'Listings' },
           { id: 'reports', label: pendingReports.length ? `Reports (${pendingReports.length})` : 'Reports' },
+          { id: 'help', label: openSupportCount ? `Help (${openSupportCount})` : 'Help' },
           { id: 'users', label: 'Users' },
           { id: 'schools', label: 'Schools' },
         ].map((t) => (
@@ -236,6 +270,53 @@ export default function AdminPage() {
                     className="text-xs px-2 py-1 rounded border border-primary/20 text-primary/60"
                   >
                     Dismiss
+                  </button>
+                </div>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+
+      {tab === 'help' && (
+        <ul className="space-y-2">
+          {supportMessages.length === 0 ? (
+            <p className="text-sm text-primary/50 text-center py-6">No help messages yet.</p>
+          ) : (
+            supportMessages.map((m) => (
+              <li
+                key={m.id}
+                className={`rounded-lg bg-white p-3 border ${
+                  m.status === 'open' ? 'border-accent/40' : 'border-primary/10 opacity-70'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-primary text-sm">{m.userName}</p>
+                  <span className="text-[10px] uppercase tracking-wide text-primary/40 shrink-0">
+                    {supportTopicLabel(m.topic)}
+                  </span>
+                </div>
+                <p className="text-xs text-primary/50 mt-0.5">{m.userSchool || 'No school'}</p>
+                {m.userPhone && (
+                  <p className="text-xs text-primary/40 mt-0.5">{m.userPhone}</p>
+                )}
+                <p className="text-sm text-primary/80 mt-2 whitespace-pre-wrap">{m.message}</p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {m.status === 'open' && (
+                    <button
+                      type="button"
+                      onClick={() => resolveSupportMessage(m)}
+                      className="text-xs px-2 py-1 rounded bg-primary/10 text-primary font-medium"
+                    >
+                      Mark done
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => deleteSupportMessage(m)}
+                    className="text-xs px-2 py-1 rounded border border-primary/20 text-primary/60"
+                  >
+                    Delete
                   </button>
                 </div>
               </li>

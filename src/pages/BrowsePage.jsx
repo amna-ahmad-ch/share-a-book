@@ -66,8 +66,7 @@ export default function BrowsePage() {
   }, [])
 
   useEffect(() => {
-    const q = query(collection(db, 'users'), where('isBlocked', '==', true))
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(collection(db, 'blockedUsers'), (snap) => {
       setBlockedUids(new Set(snap.docs.map((d) => d.id)))
     })
     return unsub

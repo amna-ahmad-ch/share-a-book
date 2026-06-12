@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app'
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check'
 import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
@@ -20,6 +21,20 @@ if (missing.length) {
 }
 
 const app = initializeApp(firebaseConfig)
+
+const appCheckSiteKey = import.meta.env.VITE_FIREBASE_APP_CHECK_SITE_KEY?.trim()
+if (appCheckSiteKey) {
+  if (import.meta.env.DEV) {
+    globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = true
+  }
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(appCheckSiteKey),
+    isTokenAutoRefreshEnabled: true,
+  })
+} else if (!import.meta.env.DEV) {
+  console.warn('App Check disabled: set VITE_FIREBASE_APP_CHECK_SITE_KEY in .env')
+}
+
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)

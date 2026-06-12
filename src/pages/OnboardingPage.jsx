@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { collection, doc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
+import { MAX_NAME_LENGTH } from '../constants'
 import { formatSchoolLabel, formatSchoolProfile, parseSchoolDoc } from '../utils/school'
 
 export default function OnboardingPage() {
@@ -55,8 +56,13 @@ export default function OnboardingPage() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    if (!name.trim()) {
+    const trimmedName = name.trim()
+    if (!trimmedName) {
       setError('Please enter your full name.')
+      return
+    }
+    if (trimmedName.length > MAX_NAME_LENGTH) {
+      setError(`Name must be ${MAX_NAME_LENGTH} characters or fewer.`)
       return
     }
     const picked = schools.find((s) => s.id === school)
@@ -68,7 +74,7 @@ export default function OnboardingPage() {
     try {
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
-        name: name.trim(),
+        name: trimmedName,
         phone: user.phoneNumber || '',
         school: formatSchoolProfile(picked),
         joinedAt: serverTimestamp(),
@@ -98,6 +104,7 @@ export default function OnboardingPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Ayesha Khan"
+            maxLength={MAX_NAME_LENGTH}
             className="mt-1 w-full px-4 py-3 rounded-lg border border-primary/20 bg-white"
           />
         </label>

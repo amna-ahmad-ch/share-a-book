@@ -13,6 +13,7 @@ import {
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { MAX_LISTINGS } from '../constants'
+import { deactivateListing } from '../utils/listingStorage'
 
 export default function MyBooksPage() {
   const { user, profile } = useAuth()
@@ -37,9 +38,11 @@ export default function MyBooksPage() {
 
   async function confirmDelete() {
     if (!deleteId) return
+    const listing = listings.find((l) => l.id === deleteId)
+    if (!listing) return
     setDeleting(true)
     try {
-      await updateDoc(doc(db, 'listings', deleteId), { isActive: false })
+      await deactivateListing(deleteId, listing)
       await updateDoc(doc(db, 'users', user.uid), {
         activeListingCount: increment(-1),
       })

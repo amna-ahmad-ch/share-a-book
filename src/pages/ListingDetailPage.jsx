@@ -4,6 +4,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import { daysSinceLabel } from '../utils/dates'
+import { MAX_LISTING_TITLE, MAX_NAME_LENGTH } from '../constants'
 import { buildWhatsAppUrl, contactMessage } from '../utils/whatsapp'
 
 export default function ListingDetailPage() {
@@ -39,6 +40,16 @@ export default function ListingDetailPage() {
       setReportError('This listing cannot be reported right now.')
       return
     }
+    if (listing.postedByUid === user.uid) {
+      setReportError('You cannot report your own listing.')
+      return
+    }
+    const listingTitle = (listing.title || '').slice(0, MAX_LISTING_TITLE)
+    const reportedByName = (profile.name || '').trim().slice(0, MAX_NAME_LENGTH)
+    if (!reportedByName) {
+      setReportError('Your profile name is required to send a report.')
+      return
+    }
     setReporting(true)
     setReportError('')
     try {
@@ -46,10 +57,10 @@ export default function ListingDetailPage() {
         doc(db, 'reports', `${listing.id}_${user.uid}`),
         {
           listingId: listing.id,
-          listingTitle: listing.title,
+          listingTitle,
           posterName: listing.postedBy,
           posterUid: listing.postedByUid,
-          reportedByName: profile.name,
+          reportedByName,
           reportedByUid: user.uid,
           status: 'pending',
           createdAt: serverTimestamp(),

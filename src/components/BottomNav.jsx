@@ -5,6 +5,7 @@ const tabs = [
   { to: '/', label: 'Browse', icon: '🏠' },
   { to: '/post', label: 'Post', icon: '➕' },
   { to: '/about', label: 'About', icon: 'ℹ️' },
+  { to: '/donate', label: 'Donate', icon: '☕' },
   { to: '/my-books', label: 'My Books', icon: '👤' },
 ]
 
@@ -22,7 +23,7 @@ export default function BottomNav() {
               to={tab.to}
               end={tab.to === '/'}
               className={({ isActive }) =>
-                `flex-1 flex flex-col items-center py-2 text-[10px] font-medium transition-colors ${
+                `flex-1 flex flex-col items-center py-2 text-[9px] font-medium transition-colors ${
                   isActive ? 'text-accent' : 'text-primary/50'
                 }`
               }

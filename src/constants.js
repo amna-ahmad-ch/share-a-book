@@ -32,6 +32,8 @@ export const CATEGORIES = [
 export const CONDITIONS = ['Like New', 'Good', 'Fair']
 
 export const MAX_LISTINGS = 20
+export const MAX_NAME_LENGTH = 100
+export const MAX_LISTING_TITLE = 200
 
 export const LISTING_TYPES = [
   { value: 'all', label: 'All' },

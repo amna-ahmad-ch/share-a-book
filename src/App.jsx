@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import { AdminRoute, ProtectedRoute, PublicOnlyRoute } from './components/ProtectedRoute'
 import AboutPage from './pages/AboutPage'
+import DonatePage from './pages/DonatePage'
 import AdminPage from './pages/AdminPage'
 import BlockedPage from './pages/BlockedPage'
 import BrowsePage from './pages/BrowsePage'
@@ -23,6 +24,7 @@ export default function App() {
 
           <Route element={<Layout />}>
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/donate" element={<DonatePage />} />
             <Route element={<ProtectedRoute />}>
               <Route index element={<BrowsePage />} />
               <Route path="listing/:id" element={<ListingDetailPage />} />
