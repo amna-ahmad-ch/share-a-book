@@ -9,6 +9,8 @@ import BlockedPage from './pages/BlockedPage'
 import BrowsePage from './pages/BrowsePage'
 import ListingDetailPage from './pages/ListingDetailPage'
 import LoginPage from './pages/LoginPage'
+import EditListingPage from './pages/EditListingPage'
+import EditProfilePage from './pages/EditProfilePage'
 import MyBooksPage from './pages/MyBooksPage'
 import OnboardingPage from './pages/OnboardingPage'
 import PostPage from './pages/PostPage'
@@ -30,6 +32,8 @@ export default function App() {
               <Route path="listing/:id" element={<ListingDetailPage />} />
               <Route path="post" element={<PostPage />} />
               <Route path="my-books" element={<MyBooksPage />} />
+              <Route path="profile/edit" element={<EditProfilePage />} />
+              <Route path="listing/:id/edit" element={<EditListingPage />} />
               <Route
                 path="admin"
                 element={

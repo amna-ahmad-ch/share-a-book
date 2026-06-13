@@ -70,10 +70,13 @@ service cloud.firestore {
                .affectedKeys()
                .hasOnly([
                  'name',
-                 'phone',
                  'school',
-                 'activeListingCount',
                ])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 100
+          && request.resource.data.school is string
+          && request.resource.data.school.size() > 0
         )
         ||
         (isAdmin()
@@ -105,12 +108,51 @@ service cloud.firestore {
         && request.resource.data.postedByUid == request.auth.uid
         && request.resource.data.isActive == true;
 
-      allow update, delete: if isBillingActive()
+      allow update: if isBillingActive()
+        && isSignedIn()
+        && (
+          (resource.data.postedByUid == request.auth.uid && isOwnerListingEdit())
+          || isAdmin()
+        );
+
+      allow delete: if isBillingActive()
         && isSignedIn()
         && (
           resource.data.postedByUid == request.auth.uid
           || isAdmin()
         );
+    }
+
+    function isOwnerListingEdit() {
+      let data = request.resource.data;
+      let prev = resource.data;
+
+      return data.postedByUid == request.auth.uid
+        && data.postedByUid == prev.postedByUid
+        && data.postedByPhone == prev.postedByPhone
+        && data.isActive == true
+        && data.isActive == prev.isActive
+        && data.createdAt == prev.createdAt
+        && data.diff(prev).affectedKeys().hasOnly([
+          'title',
+          'grade',
+          'category',
+          'condition',
+          'type',
+          'price',
+          'imageUrl',
+          'imagePath',
+          'postedBy',
+          'school',
+        ])
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 200
+        && data.grade is string
+        && data.category is string
+        && data.condition in ['Like New', 'Good', 'Fair']
+        && data.type in ['free', 'sell']
+        && (data.type == 'free' || data.price is number);
     }
 
     /* =========================

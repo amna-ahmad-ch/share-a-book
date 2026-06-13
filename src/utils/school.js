@@ -22,3 +22,10 @@ export function formatSchoolProfile(school) {
   if (school.city) parts.push(school.city)
   return parts.filter(Boolean).join(', ')
 }
+
+/** Match a profile school string back to a schools list entry. */
+export function findSchoolIdForProfile(schools, profileSchool) {
+  if (!profileSchool) return ''
+  const match = schools.find((s) => formatSchoolProfile(s) === profileSchool)
+  return match?.id || ''
+}
